@@ -48,7 +48,7 @@ app.get('/api/recommendation', async (req, res) => {
         const prompt = `Berikut adalah daftar game PC populer saat ini: ${gamesList}. Berikan rekomendasi singkat dan menarik dari daftar tersebut untuk seseorang yang menyukai game bergenre aksi dan petualangan, lengkap dengan alasan pemilihannya dalam Bahasa Indonesia.`;
 
         const aiResponse = await ai.models.generateContent({
-            model: 'gemini-3.8-flash',
+            model: 'gemini-3.6-flash',
             contents: prompt,
         });
 
