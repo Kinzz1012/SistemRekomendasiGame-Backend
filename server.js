@@ -3,46 +3,43 @@ const express = require('express');
 const axios = require('axios');
 const { GoogleGenAI } = require('@google/genai');
 
-const app = express();
-const PORT = process.env.PORT || 3000;
+class CacheManager {
+    constructor() {
+        this.cache = new Map();
+    }
 
-const RAWG_API_KEY = process.env.RAWG_API_KEY;
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    get(key) {
+        return this.cache.get(key);
+    }
 
-app.use(express.json());
+    set(key, value) {
+        this.cache.set(key, value);
+    }
 
-const serverCache = new Map();
+    has(key) {
+        return this.cache.has(key);
+    }
+}
 
-app.get('/', (req, res) => {
-    res.json({ message: "Halo! Backend GameMatch berhasil berjalan!" });
-});
+class GameService {
+    constructor(rawgApiKey, geminiApiKey) {
+        this.rawgApiKey = rawgApiKey;
+        this.ai = new GoogleGenAI({ apiKey: geminiApiKey });
+        this.cacheManager = new CacheManager();
+    }
 
-app.post('/api/recommend', async (req, res) => {
-    try {
-        const { prompt, platform, genre, year } = req.body;
-
+    async getRecommendations(prompt, platform, genre, year) {
         if (!prompt || prompt.trim() === "") {
-            return res.status(400).json({ 
-                success: false, 
-                message: "Prompt kriteria game tidak boleh kosong." 
-            });
+            throw new Error("Prompt kriteria game tidak boleh kosong.");
         }
-
         if (prompt.length > 300) {
-            return res.status(400).json({ 
-                success: false, 
-                message: "Prompt melebihi batas maksimal 300 karakter." 
-            });
+            throw new Error("Prompt melebihi batas maksimal 300 karakter.");
         }
 
         const cacheKey = `${prompt}_${platform || 'all'}_${genre || 'all'}_${year || 'all'}`;
 
-        if (serverCache.has(cacheKey)) {
-            return res.json({
-                success: true,
-                source: "cache",
-                data: serverCache.get(cacheKey)
-            });
+        if (this.cacheManager.has(cacheKey)) {
+            return { source: "cache", data: this.cacheManager.get(cacheKey) };
         }
 
         const aiPrompt = `Berikan rekomendasi 3 sampai 5 judul game PC yang sangat sesuai dengan kriteria berikut:
@@ -53,7 +50,7 @@ app.post('/api/recommend', async (req, res) => {
         
         Keluarkan hasilnya HANYA DALAM BENTUK ARRAY JSON berisikan nama-nama judul game saja tanpa teks tambahan, contoh format: ["Game A", "Game B", "Game C"]`;
 
-        const aiResponse = await ai.models.generateContent({
+        const aiResponse = await this.ai.models.generateContent({
             model: 'gemini-3.6-flash',
             contents: aiPrompt,
         });
@@ -63,17 +60,13 @@ app.post('/api/recommend', async (req, res) => {
             let cleanText = aiResponse.text.replace(/```json/g, '').replace(/```/g, '').trim();
             gameTitles = JSON.parse(cleanText);
         } catch (parseError) {
-            return res.status(500).json({ success: false, message: "Gagal memproses daftar game dari AI." });
+            throw new Error("Gagal memproses daftar game dari AI.");
         }
 
         const gameDetailsPromises = gameTitles.map(async (title) => {
             try {
                 const rawgRes = await axios.get(`https://api.rawg.io/api/games`, {
-                    params: {
-                        key: RAWG_API_KEY,
-                        search: title,
-                        page_size: 1
-                    }
+                    params: { key: this.rawgApiKey, search: title, page_size: 1 }
                 });
 
                 if (rawgRes.data.results && rawgRes.data.results.length > 0) {
@@ -96,22 +89,48 @@ app.post('/api/recommend', async (req, res) => {
         const gameDetailsResults = await Promise.all(gameDetailsPromises);
         const validGames = gameDetailsResults.filter(g => g !== null);
 
-        serverCache.set(cacheKey, validGames);
+        this.cacheManager.set(cacheKey, validGames);
 
-        res.json({
-            success: true,
-            source: "api",
-            data: validGames
+        return { source: "api", data: validGames };
+    }
+}
+
+class ServerApp {
+    constructor() {
+        this.app = express();
+        this.port = process.env.PORT || 3000;
+        this.gameService = new GameService(process.env.RAWG_API_KEY, process.env.GEMINI_API_KEY);
+        
+        this.configureMiddleware();
+        this.configureRoutes();
+    }
+
+    configureMiddleware() {
+        this.app.use(express.json());
+    }
+
+    configureRoutes() {
+        this.app.get('/', (req, res) => {
+            res.json({ message: "Halo! Backend OOP GameMatch berhasil berjalan!" });
         });
 
-    } catch (error) {
-        res.status(500).json({ 
-            success: false, 
-            message: "Terjadi kesalahan pada server saat memproses rekomendasi." 
+        this.app.post('/api/recommend', async (req, res) => {
+            try {
+                const { prompt, platform, genre, year } = req.body;
+                const result = await this.gameService.getRecommendations(prompt, platform, genre, year);
+                res.json({ success: true, source: result.source, data: result.data });
+            } catch (error) {
+                res.status(400).json({ success: false, message: error.message });
+            }
         });
     }
-});
 
-app.listen(PORT, () => {
-    console.log(`Server berjalan di http://localhost:${PORT}`);
-});
+    start() {
+        this.app.listen(this.port, () => {
+            console.log(`Server OOP berjalan di http://localhost:${this.port}`);
+        });
+    }
+}
+
+const server = new ServerApp();
+server.start();
