@@ -96,10 +96,10 @@ class GameService {
         }
 
         const aiPrompt = `Berikan rekomendasi 3 sampai 5 judul game yang paling sesuai dengan kriteria berikut:
-- Deskripsi: "${cleanDescription}"
-- Genres: ${normalizedGenres.length > 0 ? normalizedGenres.join(", ") : "Bebas"}
-- Platforms: ${normalizedPlatforms.length > 0 ? normalizedPlatforms.join(", ") : "Bebas"}
-- Released Date / Tahun: ${cleanReleasedDate || "Bebas"}
+        - Deskripsi: "${cleanDescription}"
+        - Genres: ${normalizedGenres.length > 0 ? normalizedGenres.join(", ") : "Bebas"}
+        - Platforms: ${normalizedPlatforms.length > 0 ? normalizedPlatforms.join(", ") : "Bebas"}
+        - Released Date / Tahun: ${cleanReleasedDate || "Bebas"}
 
         Keluarkan hasilnya HANYA DALAM BENTUK ARRAY JSON berisikan nama-nama judul game saja tanpa teks tambahan, contoh format: ["Game A", "Game B", "Game C"]`;
 
@@ -197,6 +197,7 @@ class ServerApp {
             "http://localhost:3000", // CRA / port lain
             "http://127.0.0.1:3000",
             "http://localhost:3001",
+            "https://gamespoi.netlify.app",
         ];
 
         this.app.use(
